@@ -1,214 +1,143 @@
-function main(config) {
-  const domesticDNS = [
-    "https://doh.pub/dns-query",
-    "https://dns.alidns.com/dns-query"
-  ];
+// Clash Verge Rev + Mihomo: 国内直连、国外代理、不拦广告。
+// 替换 rules / DNS；保留订阅节点、节点提供器和原策略组。
+// 规则固定到提交版本，更新方法见 README.md。
+const PERSONAL_RULE_REV = "4435ba4141d82aab94e541e29023fc6a1f627723";
+const PERSONAL_PROXY = "自用默认代理";
 
-  const foreignDNS = [
-    "https://1.1.1.1/dns-query",
-    "https://8.8.8.8/dns-query"
-  ];
+// 自定义例外放在这里，优先于远程域名集。策略用 DIRECT 或 PERSONAL_PROXY。
+const PERSONAL_EXTRA_RULES = [
+    // "DOMAIN-SUFFIX,example.com,DIRECT",
+];
 
-  config["dns"] = {
-    enable: true,
-    listen: "0.0.0.0:1053",
-    ipv6: false,
-
-    "enhanced-mode": "fake-ip",
-    "fake-ip-range": "198.18.0.1/16",
-    "fake-ip-filter-mode": "blacklist",
-
-    "fake-ip-filter": [
-      "+.lan",
-      "+.local",
-      "+.arpa",
-      "+.msftconnecttest.com",
-      "+.msftncsi.com",
-      "localhost.ptlogin2.qq.com",
-      "localhost.sec.qq.com",
-      "localhost.work.weixin.qq.com",
-      "time.*.com",
-      "time.*.gov",
-      "ntp.*.com",
-      "pool.ntp.org",
-      "+.market.xiaomi.com"
-    ],
-
-    "default-nameserver": [
-      "119.29.29.29",
-      "223.5.5.5"
-    ],
-
-    "nameserver-policy": {
-      "geosite:cn,private,apple": domesticDNS
-    },
-
-    nameserver: foreignDNS,
-
-    // DNS 服务器连接遵循现有分流规则
-    "respect-rules": true,
-
-    // 专门解析代理节点域名，避免解析死循环
-    "proxy-server-nameserver": domesticDNS,
-
-    // DIRECT 域名使用国内 DNS
-    "direct-nameserver": domesticDNS,
-    "direct-nameserver-follow-policy": true,
-
-    "prefer-h3": false,
-    "use-system-hosts": false,
-    "cache-algorithm": "arc"
-  };
-
-  // 保留 Clash Verge/UI 生成的 TUN 开关，只补充高级参数
-  config["tun"] = {
-    ...(config["tun"] || {}),
-    "auto-route": true,
-    "auto-detect-interface": true,
-    "strict-route": true,
-    "dns-hijack": [
-      "any:53",
-      "tcp://any:53"
-    ]
-  };
-
-  // 仅增强规则层：保留订阅原有策略组、规则及其相对顺序
-  const groupNames = new Set(
-    (config["proxy-groups"] || [])
-      .map(group => group && group.name)
-      .filter(Boolean)
-  );
-  const proxyGroup = ["节点选择", "🔰 手动选择"].find(name => groupNames.has(name));
-
-  if (!proxyGroup) {
-    throw new Error("未找到代理策略组：需要“节点选择”或“🔰 手动选择”");
-  }
-
-  const providerName = "loyalsoldier-proxy";
-  config["rule-providers"] = {
-    ...(config["rule-providers"] || {}),
-    [providerName]: {
-      type: "http",
-      behavior: "domain",
-      format: "yaml",
-      interval: 86400,
-      url: "https://fastly.jsdelivr.net/gh/Loyalsoldier/clash-rules@release/proxy.txt",
-      path: "./ruleset/loyalsoldier/proxy.yaml"
-    }
-  };
-
-  const browserLeaksPrefix = "DOMAIN-SUFFIX,browserleaks.com,";
-  const providerRulePrefix = `RULE-SET,${providerName},`;
-  const windowsConnectivityRules = [
-    "DOMAIN-SUFFIX,msftconnecttest.com,DIRECT",
-    "DOMAIN-SUFFIX,msftncsi.com,DIRECT"
-  ];
-  const steamConnectivityRules = [
-    "DOMAIN-SUFFIX,steamserver.net,DIRECT",
-    "DOMAIN-SUFFIX,steamconnecttest.com,DIRECT"
-  ];
-  const steamProcessRules = [
-    "PROCESS-NAME,steam.exe,DIRECT",
-    "PROCESS-NAME,steamwebhelper.exe,DIRECT",
-    "PROCESS-NAME,steamservice.exe,DIRECT"
-  ];
-  // 仅代理 Steam 商店/社区网页资源；不要扩大到整个 steampowered.com
-  // 或 steamstatic.com，否则客户端更新和游戏下载也可能进入代理。
-  const steamWebDomains = [
-    "store.steampowered.com",
-    "checkout.steampowered.com",
-    "steamstore-a.akamaihd.net",
-    "steamcommunity-a.akamaihd.net",
-    "steamuserimages-a.akamaihd.net",
-    "steamusercontent-a.akamaihd.net",
-    "store.akamai.steamstatic.com",
-    "store.fastly.steamstatic.com",
-    "shared.akamai.steamstatic.com",
-    "shared.fastly.steamstatic.com",
-    "community.steamstatic.com",
-    "community.akamai.steamstatic.com",
-    "community.cloudflare.steamstatic.com",
-    "community.fastly.steamstatic.com",
-    "cdn.akamai.steamstatic.com",
-    "cdn.fastly.steamstatic.com",
-    "images.steamusercontent.com",
-    "clan.steamstatic.com",
-    "clan.akamai.steamstatic.com",
-    "clan.cloudflare.steamstatic.com",
-    "clan.fastly.steamstatic.com",
-    "avatars.steamstatic.com",
-    "avatars.akamai.steamstatic.com",
-    "avatars.cloudflare.steamstatic.com",
+// 借鉴本机原脚本：商店/社区网页代理，下载与连通性检测直连。
+// 用域名区分，避免将整个 Steam 进程的国外请求都强制直连。
+const PERSONAL_STEAM_WEB = [
+    "store.steampowered.com", "checkout.steampowered.com",
+    "steamstore-a.akamaihd.net", "steamcommunity-a.akamaihd.net",
+    "steamuserimages-a.akamaihd.net", "steamusercontent-a.akamaihd.net",
+    "store.akamai.steamstatic.com", "store.fastly.steamstatic.com",
+    "shared.akamai.steamstatic.com", "shared.fastly.steamstatic.com",
+    "community.steamstatic.com", "community.akamai.steamstatic.com",
+    "community.cloudflare.steamstatic.com", "community.fastly.steamstatic.com",
+    "cdn.akamai.steamstatic.com", "cdn.fastly.steamstatic.com",
+    "images.steamusercontent.com", "clan.steamstatic.com",
+    "clan.akamai.steamstatic.com", "clan.cloudflare.steamstatic.com",
+    "clan.fastly.steamstatic.com", "avatars.steamstatic.com",
+    "avatars.akamai.steamstatic.com", "avatars.cloudflare.steamstatic.com",
     "avatars.fastly.steamstatic.com"
-  ];
-  const steamWebRulePrefixes = steamWebDomains.map(domain => `DOMAIN,${domain},`);
-  const steamCommunityPrefix = "DOMAIN-SUFFIX,steamcommunity.com,";
-  const managedRulePrefixes = [
-    browserLeaksPrefix,
-    providerRulePrefix,
-    ...steamWebRulePrefixes,
-    steamCommunityPrefix,
-    ...windowsConnectivityRules.map(rule => `${rule.split(",").slice(0, 2).join(",")},`),
-    ...steamConnectivityRules.map(rule => `${rule.split(",").slice(0, 2).join(",")},`),
-    ...steamProcessRules.map(rule => `${rule.split(",").slice(0, 2).join(",")},`)
-  ];
-  const rules = (Array.isArray(config["rules"]) ? config["rules"] : [])
-    .filter(rule =>
-      typeof rule !== "string" ||
-      !managedRulePrefixes.some(prefix => rule.startsWith(prefix))
-    );
+];
 
-  // 确定性修复 BrowserLeaks；规则集则放在 CN/MATCH 兜底规则之前
-  rules.unshift(
-    `${browserLeaksPrefix}${proxyGroup}`,
-    ...steamWebRulePrefixes.map(prefix => `${prefix}${proxyGroup}`),
-    `${steamCommunityPrefix}${proxyGroup}`,
-    ...steamProcessRules,
-    ...windowsConnectivityRules,
-    ...steamConnectivityRules
-  );
-  const fallbackIndex = rules.findIndex(rule => {
-    if (typeof rule !== "string") return false;
-    return /^(GEOIP|GEOSITE),CN,|^MATCH,/.test(rule.trim());
-  });
-  rules.splice(
-    fallbackIndex === -1 ? rules.length : fallbackIndex,
-    0,
-    `${providerRulePrefix}${proxyGroup}`
-  );
-  config["rules"] = rules;
+function main(config) {
+    if (!config || typeof config !== "object") {
+        throw new Error("没有收到有效的订阅配置");
+    }
+    const nodes = (config.proxies || []).filter(function (p) {
+        return p && p.name && !/^(direct|reject|dns|pass)$/i.test(p.type || "");
+    });
+    const providers = Object.keys(config["proxy-providers"] || {});
+    if (!nodes.length && !providers.length) {
+        throw new Error("订阅没有可用节点或节点提供器，请先导入节点订阅");
+    }
+    if ((config.proxies || []).some(function (p) { return p.name === PERSONAL_PROXY; })) {
+        throw new Error("节点名称与自用默认代理重名，请修改脚本中的 PERSONAL_PROXY");
+    }
+    const group = {
+        name: PERSONAL_PROXY,
+        type: "select",
+        proxies: nodes.map(function (p) { return p.name; }),
+        "exclude-type": "direct|reject|dns|pass",
+        "empty-fallback": "REJECT"
+    };
+    if (providers.length) group.use = providers;
+    // 重复应用时替换本脚本的组，避免重复名称。
+    config["proxy-groups"] = [group].concat((config["proxy-groups"] || []).filter(function (g) {
+        return g.name !== PERSONAL_PROXY;
+    }));
 
-  // Keep Windows OpenSSH outside the proxy/TUN route on every profile.
-  const niuniuSshDirectRule = "PROCESS-NAME,ssh.exe,DIRECT";
-  const niuniuExistingRules = Array.isArray(config.rules) ? config.rules : [];
-  config.rules = [
-    niuniuSshDirectRule,
-    ...niuniuExistingRules.filter((rule) => rule !== niuniuSshDirectRule),
-  ];
+    const base = "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/" + PERSONAL_RULE_REV + "/rule/Clash/";
+    const ruleProviders = config["rule-providers"] || {};
+    ["Global", "China"].forEach(function (category) {
+        const key = category === "Global" ? "personal-global" : "personal-cn";
+        ruleProviders[key] = {
+            type: "http",
+            behavior: "domain",
+            format: "yaml",
+            url: base + category + "/" + category + "_Domain.yaml",
+            path: "./ruleset/personal/" + PERSONAL_RULE_REV + "/" + category + ".yaml",
+            proxy: PERSONAL_PROXY,
+            interval: 604800
+        };
+    });
+    config["rule-providers"] = ruleProviders;
+    config.rules = [
+        "DOMAIN,localhost,DIRECT",
+        "DOMAIN-SUFFIX,local,DIRECT",
+        "DOMAIN-SUFFIX,lan,DIRECT",
+        "IP-CIDR,127.0.0.0/8,DIRECT,no-resolve",
+        "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+        "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+        "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+        "IP-CIDR,169.254.0.0/16,DIRECT,no-resolve",
+        "IP-CIDR6,::1/128,DIRECT,no-resolve",
+        "IP-CIDR6,fc00::/7,DIRECT,no-resolve",
+        "IP-CIDR6,fe80::/10,DIRECT,no-resolve"
+    ].concat(PERSONAL_EXTRA_RULES,
+        PERSONAL_STEAM_WEB.map(function (domain) { return "DOMAIN," + domain + "," + PERSONAL_PROXY; }), [
+        "DOMAIN-SUFFIX,steamcommunity.com," + PERSONAL_PROXY,
+        "DOMAIN-SUFFIX,browserleaks.com," + PERSONAL_PROXY,
+        "DOMAIN-SUFFIX,steamcontent.com,DIRECT",
+        "DOMAIN-SUFFIX,steamserver.net,DIRECT",
+        "DOMAIN-SUFFIX,steamconnecttest.com,DIRECT",
+        "DOMAIN-SUFFIX,msftconnecttest.com,DIRECT",
+        "DOMAIN-SUFFIX,msftncsi.com,DIRECT",
+        // 规则下载站先走代理，避免首次下载依赖尚未加载的规则集。
+        "DOMAIN,raw.githubusercontent.com," + PERSONAL_PROXY,
+        "RULE-SET,personal-global," + PERSONAL_PROXY,
+        "DOMAIN-SUFFIX,cn,DIRECT",
+        "DOMAIN-SUFFIX,ms,DIRECT",
+        "RULE-SET,personal-cn,DIRECT",
+        "GEOIP,CN,DIRECT",
+        "MATCH," + PERSONAL_PROXY
+    ]);
 
-  // Domestic and private destinations use the local connection.
-  // Keep explicit Steam/browser/process exceptions before these general rules.
-  const privateDirectRules = [
-    "GEOSITE,private,DIRECT",
-    "IP-CIDR6,::1/128,DIRECT,no-resolve",
-    "IP-CIDR6,fc00::/7,DIRECT,no-resolve",
-    "IP-CIDR6,fe80::/10,DIRECT,no-resolve"
-  ];
-  const domesticDomainRule = "GEOSITE,cn,DIRECT";
-  const domesticIpRule = "GEOIP,CN,DIRECT";
-  const generalDirectRules = [...privateDirectRules, domesticDomainRule, domesticIpRule];
-  let routedRules = config.rules.filter(rule => !generalDirectRules.includes(rule));
-  const broadProxyIndex = routedRules.findIndex(rule =>
-    typeof rule === "string" &&
-    (rule.startsWith(`RULE-SET,${providerName},`) || rule.startsWith("MATCH,"))
-  );
-  routedRules.splice(broadProxyIndex < 0 ? routedRules.length : broadProxyIndex,
-    0, ...privateDirectRules, domesticDomainRule);
-  const finalFallbackIndex = routedRules.findIndex(rule =>
-    typeof rule === "string" && rule.startsWith("MATCH,"));
-  routedRules.splice(finalFallbackIndex < 0 ? routedRules.length : finalFallbackIndex,
-    0, domesticIpRule);
-  config.rules = routedRules;
-
-  return config;
+    const domesticDNS = ["https://dns.alidns.com/dns-query#DIRECT", "https://doh.pub/dns-query#DIRECT"];
+    // 借鉴本机国内/国外分开解析，并显式指定国外 DoH 走默认代理。
+    // 节点域名独立解析，避免“先连节点才能解析节点”的循环依赖。
+    config.dns = {
+        enable: true,
+        listen: "127.0.0.1:1053",
+        ipv6: false,
+        "enhanced-mode": "fake-ip",
+        "fake-ip-range": "198.18.0.1/16",
+        "fake-ip-filter-mode": "blacklist",
+        "fake-ip-filter": [
+            "+.lan", "+.local", "+.arpa", "localhost",
+            "+.msftconnecttest.com", "+.msftncsi.com",
+            "localhost.ptlogin2.qq.com", "localhost.sec.qq.com",
+            "localhost.work.weixin.qq.com", "time.*.com", "time.*.gov",
+            "ntp.*.com", "+.pool.ntp.org", "+.market.xiaomi.com"
+        ],
+        "use-hosts": true,
+        "use-system-hosts": false,
+        "default-nameserver": ["https://223.5.5.5/dns-query"],
+        nameserver: ["https://1.1.1.1/dns-query#" + PERSONAL_PROXY, "https://8.8.8.8/dns-query#" + PERSONAL_PROXY],
+        "respect-rules": true,
+        "proxy-server-nameserver": domesticDNS,
+        "direct-nameserver": domesticDNS,
+        "direct-nameserver-follow-policy": false,
+        "nameserver-policy": {"rule-set:personal-cn": domesticDNS, "+.lan": "system", "+.local": "system", "+.arpa": "system"},
+        "prefer-h3": false,
+        "cache-algorithm": "arc"
+    };
+    // 保留客户端 TUN 开关；只有用户开启 TUN 时这些参数才生效。
+    config.tun = Object.assign({}, config.tun || {}, {
+        "auto-route": true,
+        "auto-detect-interface": true,
+        "strict-route": true,
+        "dns-hijack": ["any:53", "tcp://any:53"]
+    });
+    config.mode = "rule";
+    config.ipv6 = false;
+    config.profile = Object.assign({}, config.profile || {}, {"store-selected": true});
+    return config;
 }

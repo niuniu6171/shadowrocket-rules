@@ -1,0 +1,55 @@
+{
+  "checked": "2026-09-17",
+  "revision": "4435ba4141d82aab94e541e29023fc6a1f627723",
+  "repository": "https://github.com/blackmatrix7/ios_rule_script",
+  "files": [
+    {
+      "path": "Shadowrocket/Global/Global_Domain.list",
+      "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/4435ba4141d82aab94e541e29023fc6a1f627723/rule/Shadowrocket/Global/Global_Domain.list",
+      "sha256": "fbf2ce03b95149c146e0489f0850815b4a08b3c9f85257e358ec11b952d854b0",
+      "bytes": 549996
+    },
+    {
+      "path": "Shadowrocket/China/China_Domain.list",
+      "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/4435ba4141d82aab94e541e29023fc6a1f627723/rule/Shadowrocket/China/China_Domain.list",
+      "sha256": "d35eec789ae09a6d2b6dd48ed2c52d6d811f433b1e73a92b2f9246b778fa7923",
+      "bytes": 51067
+    },
+    {
+      "path": "Clash/Global/Global_Domain.yaml",
+      "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/4435ba4141d82aab94e541e29023fc6a1f627723/rule/Clash/Global/Global_Domain.yaml",
+      "sha256": "d833ae6bbbe7adb2c03788c01c6b72251b54183696965a6081065830e894ad03",
+      "bytes": 794136
+    },
+    {
+      "path": "Clash/China/China_Domain.yaml",
+      "url": "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/4435ba4141d82aab94e541e29023fc6a1f627723/rule/Clash/China/China_Domain.yaml",
+      "sha256": "4339f90b3927c192a83f6c00200ac37fa5c5c5946f53a8bdd7e6a6322e4fc26d",
+      "bytes": 76901
+    }
+  ],
+  "validation": {
+    "Global": {
+      "shadowrocket_remote_domains": 34892,
+      "clash_remote_domains": 34892,
+      "shadowrocket_local_supplements": [],
+      "effective_domain_sets_equal": true
+    },
+    "China": {
+      "shadowrocket_remote_domains": 3689,
+      "clash_remote_domains": 3691,
+      "shadowrocket_local_supplements": [
+        ".cn",
+        ".ms"
+      ],
+      "effective_domain_sets_equal": true
+    }
+  },
+  "domain_match_samples": {
+    "www.baidu.com": "DIRECT",
+    "www.google.com": "PROXY",
+    "github.com": "PROXY",
+    "chatgpt.com": "PROXY",
+    "www.bilibili.com": "DIRECT"
+  }
+}
