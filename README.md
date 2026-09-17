@@ -28,11 +28,11 @@
 
 [查看 Clash_Global_Extension.js 原文](https://raw.githubusercontent.com/niuniu6171/shadowrocket-rules/main/Clash_Global_Extension.js)
 
-使用“规则”模式，在“自用默认代理”组中选择节点。支持内嵌节点和 `proxy-providers`。
+使用“规则”模式，在订阅原有的“节点选择”组中选择节点。脚本优先复用“节点选择”“🔰 手动选择”“PROXY”“Proxy”，其次复用订阅 MATCH 指定的手动组或唯一手动组；没有合适的组时才创建“自用默认代理”。支持内嵌节点和 `proxy-providers`。
 
-脚本替换分流规则和 DNS，关闭配置中的 IPv6；保留节点、节点提供器、原策略组和原规则提供器。原策略组仍可见，用于保留代理链等既有引用，本脚本规则只使用“自用默认代理”。组为空时拒绝连接，不自动直连。
+脚本替换分流规则和 DNS，关闭配置中的 IPv6；保留节点、节点提供器、原策略组和原规则提供器。本脚本规则、国外 DNS 和规则下载统一使用选中的代理组，不重复创建选择入口，也不删除其他组的代理链引用。复用组保留原有成员和行为，包括可能存在的 DIRECT 选项；要使用代理需选择实际节点。仅新建的默认组设置为空时拒绝连接。
 
-预留组名 `自用默认代理` 和规则提供器名 `personal-global`、`personal-cn`，请勿用于其他用途。客户端设置或后执行的订阅扩展可能覆盖脚本，以实际运行配置为准。
+新建默认组使用 `自用默认代理`；预留规则提供器名 `personal-global`、`personal-cn`，请勿用于其他用途。客户端设置或后执行的订阅扩展可能覆盖脚本，以实际运行配置为准。
 
 ## 分流行为
 
@@ -48,7 +48,7 @@
 
 ## DNS 与 TUN
 
-Clash 使用国内/国外分开解析：国内域名集、直连目的地和节点域名使用阿里/腾讯 DoH，其他默认使用通过“自用默认代理”访问的 Cloudflare/Google DoH。单独解析节点，避免 DNS 循环依赖；默认节点不可用时国外 DNS 也可能不可用。
+Clash 使用国内/国外分开解析：国内域名集、直连目的地和节点域名使用阿里/腾讯 DoH，其他默认使用通过选中的默认代理组访问的 Cloudflare/Google DoH。单独解析节点，避免 DNS 循环依赖；默认节点不可用时国外 DNS 也可能不可用。
 
 保留 Fake-IP 和 Windows 联网检测、QQ/微信登录、NTP、小米服务的兼容项。保留客户端 TUN 开关，仅补充严格路由和 TCP/UDP 53 接管参数，不主动开启 TUN。DNS 监听 `127.0.0.1:1053`。
 
@@ -70,7 +70,7 @@ Clash 使用国内/国外分开解析：国内域名集、直连目的地和节�
 
 ## 自定义与回退
 
-Shadowrocket 在标记位置添加个人规则；Clash 在 `PERSONAL_EXTRA_RULES` 中添加，两端同步修改。例如 `DOMAIN-SUFFIX,example.com,DIRECT`；代理策略小火箭用 `PROXY`，Clash 用 `自用默认代理`。
+Shadowrocket 在标记位置添加个人规则；Clash 在 `PERSONAL_EXTRA_RULES` 中添加，两端同步修改。例如 `DOMAIN-SUFFIX,example.com,DIRECT`；代理策略两端均可填 `PROXY`，Clash 的个人例外会将它替换为实际复用的组名。
 
 回退时，小火箭重新选择原配置；Clash 恢复备份脚本并重新应用订阅。新规则缓存不覆盖原订阅文件。
 
@@ -82,7 +82,7 @@ Shadowrocket 在标记位置添加个人规则；Clash 在 `PERSONAL_EXTRA_RULES
 python -m unittest discover -s tests -p test_proxy_config.py -v
 ```
 
-2026-09-17：7 项离线测试通过。Mihomo v1.19.29 在隔离目录中使用虚构 SOCKS 节点完成配置 `-t` 检查。百度、哔哩哔哩样例匹配直连；Google、GitHub、ChatGPT 样例匹配代理。
+2026-09-17：10 项离线测试通过（包含代理组复用、引用保持和重复应用）。Mihomo v1.19.29 在隔离目录中使用虚构 SOCKS 节点完成配置 `-t` 检查。百度、哔哩哔哩样例匹配直连；Google、GitHub、ChatGPT 样例匹配代理。
 
 上述为配置与规则检查，不是实际联网、DNS 出口、Steam 下载或 iOS 实测。导入后应检查连接记录；Shadowrocket 仍需手机验证。
 

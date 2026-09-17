@@ -2,9 +2,10 @@
 // 替换 rules / DNS；保留订阅节点、节点提供器和原策略组。
 // 规则固定到提交版本，更新方法见 README.md。
 const PERSONAL_RULE_REV = "4435ba4141d82aab94e541e29023fc6a1f627723";
-const PERSONAL_PROXY = "自用默认代理";
+const PERSONAL_FALLBACK_PROXY = "自用默认代理";
 
-// 自定义例外放在这里，优先于远程域名集。策略用 DIRECT 或 PERSONAL_PROXY。
+// 自定义例外放在这里，优先于远程域名集。策略用 DIRECT 或 PROXY。
+// PROXY 会替换为实际复用的代理组名称。
 const PERSONAL_EXTRA_RULES = [
     // "DOMAIN-SUFFIX,example.com,DIRECT",
 ];
@@ -38,21 +39,39 @@ function main(config) {
     if (!nodes.length && !providers.length) {
         throw new Error("订阅没有可用节点或节点提供器，请先导入节点订阅");
     }
-    if ((config.proxies || []).some(function (p) { return p.name === PERSONAL_PROXY; })) {
-        throw new Error("节点名称与自用默认代理重名，请修改脚本中的 PERSONAL_PROXY");
+    const groups = config["proxy-groups"] || [];
+    const selectors = groups.filter(function (g) { return g && g.type === "select"; });
+    let group = null;
+    ["节点选择", "🔰 手动选择", "PROXY", "Proxy"].some(function (name) {
+        group = selectors.find(function (g) { return g.name === name; });
+        return !!group;
+    });
+    // 自定义名称优先使用订阅 MATCH 的手动组，避免误选流媒体专用组。
+    if (!group) {
+        const match = (config.rules || []).find(function (rule) {
+            return typeof rule === "string" && /^MATCH,/.test(rule);
+        });
+        const target = match ? match.split(",")[1].trim() : "";
+        group = selectors.find(function (g) { return g.name === target; });
     }
-    const group = {
-        name: PERSONAL_PROXY,
-        type: "select",
-        proxies: nodes.map(function (p) { return p.name; }),
-        "exclude-type": "direct|reject|dns|pass",
-        "empty-fallback": "REJECT"
-    };
-    if (providers.length) group.use = providers;
-    // 重复应用时替换本脚本的组，避免重复名称。
-    config["proxy-groups"] = [group].concat((config["proxy-groups"] || []).filter(function (g) {
-        return g.name !== PERSONAL_PROXY;
-    }));
+    if (!group && selectors.length === 1) group = selectors[0];
+    if (!group) group = selectors.find(function (g) { return g.name === PERSONAL_FALLBACK_PROXY; });
+    if (!group) {
+        if (groups.some(function (g) { return g.name === PERSONAL_FALLBACK_PROXY; }) ||
+            (config.proxies || []).some(function (p) { return p.name === PERSONAL_FALLBACK_PROXY; })) {
+            throw new Error("自用默认代理名称已被占用，请修改 PERSONAL_FALLBACK_PROXY");
+        }
+        group = {
+            name: PERSONAL_FALLBACK_PROXY,
+            type: "select",
+            proxies: nodes.map(function (p) { return p.name; }),
+            "exclude-type": "direct|reject|dns|pass",
+            "empty-fallback": "REJECT"
+        };
+        if (providers.length) group.use = providers;
+        config["proxy-groups"] = [group].concat(groups);
+    }
+    const PERSONAL_PROXY = group.name;
 
     const base = "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/" + PERSONAL_RULE_REV + "/rule/Clash/";
     const ruleProviders = config["rule-providers"] || {};
@@ -81,7 +100,9 @@ function main(config) {
         "IP-CIDR6,::1/128,DIRECT,no-resolve",
         "IP-CIDR6,fc00::/7,DIRECT,no-resolve",
         "IP-CIDR6,fe80::/10,DIRECT,no-resolve"
-    ].concat(PERSONAL_EXTRA_RULES,
+    ].concat(PERSONAL_EXTRA_RULES.map(function (rule) {
+        return rule.replace(/,PROXY(?=,no-resolve$|$)/, "," + PERSONAL_PROXY);
+    }),
         PERSONAL_STEAM_WEB.map(function (domain) { return "DOMAIN," + domain + "," + PERSONAL_PROXY; }), [
         "DOMAIN-SUFFIX,steamcommunity.com," + PERSONAL_PROXY,
         "DOMAIN-SUFFIX,browserleaks.com," + PERSONAL_PROXY,

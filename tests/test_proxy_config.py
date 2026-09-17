@@ -49,10 +49,36 @@ class ProxyConfigTests(unittest.TestCase):
         self.assertEqual(result["proxies"], original["proxies"])
         self.assertIn(original["proxy-groups"][0], result["proxy-groups"])
         self.assertFalse(any(",REJECT" in rule for rule in result["rules"]))
-        self.assertEqual(result["rules"][-1], "MATCH,自用默认代理")
+        self.assertEqual(result["rules"][-1], "MATCH,original")
 
     def test_reapplication_is_idempotent(self):
         self.assertEqual(transform(fixture()), transform(fixture(), twice=True))
+
+    def test_reuses_existing_selector_without_duplicate_group(self):
+        for name in ("节点选择", "🔰 手动选择", "PROXY", "Proxy"):
+            with self.subTest(name=name):
+                source = fixture()
+                source["proxy-groups"] = [{"name": name, "type": "select", "proxies": ["test-node", "DIRECT"]}]
+                result = transform(source, twice=True)
+                self.assertEqual(result["proxy-groups"], source["proxy-groups"])
+                self.assertEqual(result["rules"][-1], "MATCH," + name)
+                self.assertTrue(all(url.endswith("#" + name) for url in result["dns"]["nameserver"]))
+                for key in ("personal-global", "personal-cn"):
+                    self.assertEqual(result["rule-providers"][key]["proxy"], name)
+
+    def test_custom_match_group_and_dependency_are_preserved(self):
+        source = fixture()
+        source["proxy-groups"].append({"name": "media", "type": "select", "proxies": ["original"]})
+        result = transform(source)
+        self.assertEqual(result["proxy-groups"], source["proxy-groups"])
+        self.assertEqual(result["rules"][-1], "MATCH,original")
+
+    def test_fallback_group_is_created_once(self):
+        source = fixture()
+        source.pop("proxy-groups")
+        result = transform(source, twice=True)
+        self.assertEqual(len(result["proxy-groups"]), 1)
+        self.assertEqual(result["rules"][-1], "MATCH,自用默认代理")
 
     def test_provider_only_subscription(self):
         source = {"proxy-providers": {"my-provider": {"type": "file", "path": "./nodes.yaml"}}}
@@ -80,7 +106,7 @@ class ProxyConfigTests(unittest.TestCase):
 
     def test_dns_bootstrap_and_foreign_route(self):
         dns = transform(fixture())["dns"]
-        self.assertTrue(all(url.endswith("#自用默认代理") for url in dns["nameserver"]))
+        self.assertTrue(all(url.endswith("#original") for url in dns["nameserver"]))
         self.assertTrue(all(url.endswith("#DIRECT") for url in dns["proxy-server-nameserver"]))
         self.assertTrue(all(url.startswith("https://") for url in dns["default-nameserver"]))
         self.assertEqual(dns["listen"], "127.0.0.1:1053")
@@ -98,7 +124,7 @@ class ProxyConfigTests(unittest.TestCase):
                 line = "RULE-SET," + name + "," + line.rsplit(",", 1)[1]
             if line.startswith("IP-CIDR,") and ":" in line.split(",")[1]:
                 line = line.replace("IP-CIDR,", "IP-CIDR6,", 1)
-            normalized.append(line.replace(",PROXY", ",自用默认代理").replace("FINAL,", "MATCH,"))
+            normalized.append(line.replace(",PROXY", ",original").replace("FINAL,", "MATCH,"))
         self.assertEqual(normalized, transform(fixture())["rules"])
 
 
