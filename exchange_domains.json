@@ -1,0 +1,120 @@
+{
+  "checked": "2026-09-17",
+  "policy": "DIRECT",
+  "revision": "6fe5416797ec88d29a3a1c69ce1431d73b955e88",
+  "services": {
+    "bybit": {
+      "source": "https://raw.githubusercontent.com/v2fly/domain-list-community/6fe5416797ec88d29a3a1c69ce1431d73b955e88/data/bybit",
+      "sha256": "8827c8c475f05cfbcb6e486752e88d000d5531a91a7b8b0cf5bbafb89a23b8e6",
+      "suffixes": [
+        "bybit.com",
+        "bycsi.com",
+        "bytick.com",
+        "byapis.com",
+        "bycbe.com",
+        "bymj.io",
+        "byabcde.com",
+        "byapps.net",
+        "byd3c3.com",
+        "bybit.biz",
+        "bybdc6.com",
+        "bybit-global.com",
+        "bybit.cloud",
+        "bybitglobal.com",
+        "bybit.nl",
+        "bybit.tr",
+        "bybit.kz",
+        "bybitgeorgia.ge",
+        "bybit.ae",
+        "bybit.eu",
+        "bybit.id"
+      ],
+      "exact_hosts": [
+        "bybit.ada.support",
+        "monitor-frontend-collector.a.bybit-aws.com"
+      ],
+      "official_documented_suffixes": [
+        "bybit.com",
+        "bytick.com",
+        "bycsi.com",
+        "bybit.nl",
+        "bybit.tr",
+        "bybit.kz",
+        "bybitgeorgia.ge",
+        "bybit.ae",
+        "bybit.eu",
+        "bybit.id"
+      ]
+    },
+    "binance": {
+      "source": "https://raw.githubusercontent.com/v2fly/domain-list-community/6fe5416797ec88d29a3a1c69ce1431d73b955e88/data/binance",
+      "sha256": "9e0134ff1d724bbbbc44730cd723b3c6952873aaa65fc2bec6ae8b25b1d70f68",
+      "suffixes": [
+        "binance.cc",
+        "binance.cloud",
+        "binance.co",
+        "binance.com",
+        "binance.info",
+        "binance.me",
+        "binance.net",
+        "binance.vision",
+        "binancecnt.com",
+        "binancezh.be",
+        "binancezh.biz",
+        "binancezh.cc",
+        "binancezh.co",
+        "binancezh.com",
+        "binancezh.info",
+        "binancezh.ink",
+        "binancezh.kim",
+        "binancezh.link",
+        "binancezh.live",
+        "binancezh.mobi",
+        "binancezh.net",
+        "binancezh.pro",
+        "binancezh.sh",
+        "binancezh.top",
+        "binanceapi.com",
+        "binanceru.net",
+        "bmwweb.solutions",
+        "bnappweb.black",
+        "bnbstatic.com",
+        "bntrace.com",
+        "bsappapi.cc",
+        "bsappapi.com",
+        "bscdnweb.com",
+        "nftstatic.com",
+        "saasexch.cc",
+        "saasexch.co",
+        "saasexch.com",
+        "saasexch.info",
+        "saasexch.io"
+      ],
+      "exact_hosts": [
+        "zftksc.cdn-settings.appsflyersdk.com",
+        "zftksc.launches.appsflyersdk.com"
+      ],
+      "official_documented_suffixes": [
+        "binance.com",
+        "binance.vision",
+        "bnbstatic.com"
+      ]
+    }
+  },
+  "excluded_related_services": [
+    "binance.charity",
+    "binance.org",
+    "binance.us",
+    "bnbchain.org"
+  ],
+  "scope_note": "Official documentation confirms only the marked subset; other domains are community classifications, not an exhaustive app traffic audit or ownership guarantee.",
+  "official_sources": [
+    "https://bybit-exchange.github.io/docs/v5/guide",
+    "https://bybit-exchange.github.io/docs/v5/ws/connect",
+    "https://bybit-exchange.github.io/docs/v5/asset/convert/convert-coin-list",
+    "https://developers.binance.com/en/docs/products/spot/rest-api",
+    "https://www.binance.com/en/academy/articles/how-to-use-binance-websocket-stream",
+    "https://web3.binance.com/static/web3/security/audit/report/SlowMistAuditReport_BinanceBrowserWalletExtension_en_us.pdf"
+  ],
+  "supplemental_observation": "https://github.com/blackmatrix7/ios_rule_script/issues/1476"
+}

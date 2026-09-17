@@ -7,6 +7,7 @@
 | [SSR_Rule.conf](./SSR_Rule.conf) | Shadowrocket（小火箭）配置；沿用历史文件名，不是 ShadowsocksR 客户端配置 |
 | [Clash_Global_Extension.js](./Clash_Global_Extension.js) | Clash Verge Rev 全局扩展脚本，使用 Mihomo 内核 |
 | [sources.json](./sources.json) | 第三方域名集版本、地址、SHA-256 和核对记录 |
+| [exchange_domains.json](./exchange_domains.json) | Bybit / Binance 直连域名清单、来源及证据范围 |
 
 不包含节点账号、密码、订阅地址、CA 证书或 HTTPS 解密配置。节点继续使用自己的订阅。
 
@@ -41,10 +42,33 @@
 - 局域网访问及局域网 SSH 直连。
 - Steam 商店、社区及列出的网页资源走代理；`steamcontent.com` 下载域名和 Steam 连通性检测直连，其他下载地址按通用规则处理。
 - Windows 连通性检测直连；BrowserLeaks 网站走代理。
+- Bybit / Binance 的主站、API、行情、资源及社区收录的 App 域名优先直连，详见下节。
 - 不按整个 Steam 或 SSH 进程强制直连。
 - 不引用广告拦截规则，不改写网页，不开启 MITM。
 
 “国内/国外”沿用上游服务分类和 GeoIP 判断，不等于公司注册地。例如国内集合包含 `.ms` 等微软常用链接所在后缀。两端域名集对齐，但客户端匹配方式、GeoIP 数据库和流量接管范围可能不同。
+
+## Bybit / Binance 直连例外
+
+2026-09-17 查询官方 API 文档、下载页及 v2fly/domain-list-community，加入 **60 条域名后缀和 4 条精确主机规则**。本地静态保存，不新增会自动变化的远程规则订阅。
+
+| 服务 | 覆盖示例 |
+| --- | --- |
+| Bybit 主站 / API / 行情 | `bybit.com`、`bytick.com`，包含 `www`、`api`、`api2`、`stream` 等任意子域名 |
+| Bybit App / 资源 / 备用入口 | `bycsi.com`、`byapps.net`、`byapis.com`、`bycbe.com`、`bybitglobal.com` 等社区收录域名 |
+| Bybit 地区站 | 官方文档列出的 `.eu`、`.nl`、`.tr`、`.kz`、`.ae`、`.id` 和 `bybitgeorgia.ge` |
+| Binance 主站 / API / 行情 | `binance.com`、`binance.vision`，覆盖登录、REST、WebSocket 及公共行情子域名 |
+| Binance App / 资源 / 备用入口 | `binanceapi.com`、`bnbstatic.com`、`nftstatic.com`、`bsappapi.com`、`bscdnweb.com`、社区收录的备用域名等 |
+
+完整后缀、精确主机、来源 URL 及来源哈希见 `exchange_domains.json`。其中 `official_documented_suffixes` 标记得到官方资料支持的子集；其他域名仅有社区分类依据，未逐个确认当前归属或 App 版本使用情况。社区主来源固定提交 `6fe5416797ec88d29a3a1c69ce1431d73b955e88`。
+
+`DOMAIN-SUFFIX,bybit.com,DIRECT` 会匹配根域名和任意层级子域名，不需要重复列举 `www.bybit.com`，也不会匹配 `fakebybit.com` 或 `bybit.com.example.org`。共享客服及 App 归因服务仅匹配清单中的专用主机，不将整个 `ada.support`、`appsflyersdk.com`、`cloudfront.net`、`amazonaws.com` 等公共服务直连，也不使用 `DOMAIN-KEYWORD,byb` 等宽泛关键词。Binance.US、慈善与链生态域名不在本次范围。
+
+这些例外排在通用代理域名集之前；Clash 同时给它们设置直连 DoH，避免 DNS 仍依赖默认代理节点。小火箭由已有 `direct-dns-server` 处理直连域名。
+
+注意：这是直连路由选择，不保证所有接口直连可达。[Bybit 官方 API 文档](https://bybit-exchange.github.io/docs/v5/guide)明确提示美国和中国大陆 IP 的 API 请求可能被拒绝并返回 403。官网能打开不能证明登录、行情、交易接口都可用。本次未登录账号、未抓取 App 流量，也未进行交易请求；手机实际版本仍可能有清单外的验证、推送或共享第三方域名。
+
+官方交叉核对：[Bybit WebSocket](https://bybit-exchange.github.io/docs/v5/ws/connect)、[Bybit 资源域名示例](https://bybit-exchange.github.io/docs/v5/asset/convert/convert-coin-list)、[Binance REST](https://developers.binance.com/en/docs/products/spot/rest-api)、[Binance WebSocket](https://www.binance.com/en/academy/articles/how-to-use-binance-websocket-stream)。社区原始清单：[Bybit](https://github.com/v2fly/domain-list-community/blob/6fe5416797ec88d29a3a1c69ce1431d73b955e88/data/bybit)、[Binance](https://github.com/v2fly/domain-list-community/blob/6fe5416797ec88d29a3a1c69ce1431d73b955e88/data/binance)。
 
 ## DNS 与 TUN
 
@@ -82,7 +106,7 @@ Shadowrocket 在标记位置添加个人规则；Clash 在 `PERSONAL_EXTRA_RULES
 python -m unittest discover -s tests -p test_proxy_config.py -v
 ```
 
-2026-09-17：10 项离线测试通过（包含代理组复用、引用保持和重复应用）。Mihomo v1.19.29 在隔离目录中使用虚构 SOCKS 节点完成配置 `-t` 检查。百度、哔哩哔哩样例匹配直连；Google、GitHub、ChatGPT 样例匹配代理。
+2026-09-17：12 项离线测试通过（包含代理组复用、引用保持、重复应用、交易所规则优先级和 DNS 一致性）。Mihomo v1.19.29 在隔离目录中使用虚构 SOCKS 节点完成配置 `-t` 检查。百度、哔哩哔哩样例匹配直连；Google、GitHub、ChatGPT 样例匹配代理。
 
 上述为配置与规则检查，不是实际联网、DNS 出口、Steam 下载或 iOS 实测。导入后应检查连接记录；Shadowrocket 仍需手机验证。
 

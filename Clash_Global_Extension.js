@@ -10,6 +10,76 @@ const PERSONAL_EXTRA_RULES = [
     // "DOMAIN-SUFFIX,example.com,DIRECT",
 ];
 
+// Bybit / Binance 直连：后缀覆盖根域名和子域名；来源见 exchange_domains.json。
+const PERSONAL_EXCHANGE_SUFFIXES = [
+    "bybit.com",
+    "bycsi.com",
+    "bytick.com",
+    "byapis.com",
+    "bycbe.com",
+    "bymj.io",
+    "byabcde.com",
+    "byapps.net",
+    "byd3c3.com",
+    "bybit.biz",
+    "bybdc6.com",
+    "bybit-global.com",
+    "bybit.cloud",
+    "bybitglobal.com",
+    "bybit.nl",
+    "bybit.tr",
+    "bybit.kz",
+    "bybitgeorgia.ge",
+    "bybit.ae",
+    "bybit.eu",
+    "bybit.id",
+    "binance.cc",
+    "binance.cloud",
+    "binance.co",
+    "binance.com",
+    "binance.info",
+    "binance.me",
+    "binance.net",
+    "binance.vision",
+    "binancecnt.com",
+    "binancezh.be",
+    "binancezh.biz",
+    "binancezh.cc",
+    "binancezh.co",
+    "binancezh.com",
+    "binancezh.info",
+    "binancezh.ink",
+    "binancezh.kim",
+    "binancezh.link",
+    "binancezh.live",
+    "binancezh.mobi",
+    "binancezh.net",
+    "binancezh.pro",
+    "binancezh.sh",
+    "binancezh.top",
+    "binanceapi.com",
+    "binanceru.net",
+    "bmwweb.solutions",
+    "bnappweb.black",
+    "bnbstatic.com",
+    "bntrace.com",
+    "bsappapi.cc",
+    "bsappapi.com",
+    "bscdnweb.com",
+    "nftstatic.com",
+    "saasexch.cc",
+    "saasexch.co",
+    "saasexch.com",
+    "saasexch.info",
+    "saasexch.io"
+];
+const PERSONAL_EXCHANGE_HOSTS = [
+    "bybit.ada.support",
+    "monitor-frontend-collector.a.bybit-aws.com",
+    "zftksc.cdn-settings.appsflyersdk.com",
+    "zftksc.launches.appsflyersdk.com"
+];
+
 // 借鉴本机原脚本：商店/社区网页代理，下载与连通性检测直连。
 // 用域名区分，避免将整个 Steam 进程的国外请求都强制直连。
 const PERSONAL_STEAM_WEB = [
@@ -103,6 +173,8 @@ function main(config) {
     ].concat(PERSONAL_EXTRA_RULES.map(function (rule) {
         return rule.replace(/,PROXY(?=,no-resolve$|$)/, "," + PERSONAL_PROXY);
     }),
+        PERSONAL_EXCHANGE_SUFFIXES.map(function (domain) { return "DOMAIN-SUFFIX," + domain + ",DIRECT"; }),
+        PERSONAL_EXCHANGE_HOSTS.map(function (domain) { return "DOMAIN," + domain + ",DIRECT"; }),
         PERSONAL_STEAM_WEB.map(function (domain) { return "DOMAIN," + domain + "," + PERSONAL_PROXY; }), [
         "DOMAIN-SUFFIX,steamcommunity.com," + PERSONAL_PROXY,
         "DOMAIN-SUFFIX,browserleaks.com," + PERSONAL_PROXY,
@@ -150,6 +222,13 @@ function main(config) {
         "prefer-h3": false,
         "cache-algorithm": "arc"
     };
+    // 直连例外的 DNS 也独立于代理节点，避免 DNS 阶段仍依赖默认代理。
+    PERSONAL_EXCHANGE_SUFFIXES.forEach(function (domain) {
+        config.dns["nameserver-policy"]["+." + domain] = domesticDNS;
+    });
+    PERSONAL_EXCHANGE_HOSTS.forEach(function (domain) {
+        config.dns["nameserver-policy"][domain] = domesticDNS;
+    });
     // 保留客户端 TUN 开关；只有用户开启 TUN 时这些参数才生效。
     config.tun = Object.assign({}, config.tun || {}, {
         "auto-route": true,

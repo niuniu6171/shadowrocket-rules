@@ -127,6 +127,42 @@ class ProxyConfigTests(unittest.TestCase):
             normalized.append(line.replace(",PROXY", ",original").replace("FINAL,", "MATCH,"))
         self.assertEqual(normalized, transform(fixture())["rules"])
 
+    def test_exchange_domains_override_proxy_without_broad_matching(self):
+        result = transform(fixture())
+        early_rules = result["rules"][:result["rules"].index("RULE-SET,personal-global,original")]
+
+        def match(host):
+            for rule in early_rules:
+                parts = rule.split(",")
+                if parts[0] == "DOMAIN" and host == parts[1]:
+                    return parts[2]
+                if parts[0] == "DOMAIN-SUFFIX" and (host == parts[1] or host.endswith("." + parts[1])):
+                    return parts[2]
+            return None
+
+        for host in ("bybit.com", "api.bybit.com", "stream.bybit.com", "api.bytick.com",
+                     "s1.bycsi.com", "api3.byapps.net", "api.bybit.eu", "binance.com",
+                     "accounts.binance.com", "api1.binance.com", "fstream.binance.com",
+                     "data-api.binance.vision", "public.bnbstatic.com", "public.nftstatic.com",
+                     "zftksc.launches.appsflyersdk.com", "bybit.ada.support"):
+            with self.subTest(host=host):
+                self.assertEqual(match(host), "DIRECT")
+        for host in ("evilbybit.com", "binance.com.attacker.example", "cloudfront.net",
+                     "other.launches.appsflyersdk.com", "other.ada.support", "google.com"):
+            with self.subTest(host=host):
+                self.assertIsNone(match(host))
+
+    def test_exchange_manifest_matches_rules_and_direct_dns(self):
+        manifest = json.loads((ROOT / "exchange_domains.json").read_text(encoding="utf-8"))
+        result = transform(fixture())
+        dns = result["dns"]["nameserver-policy"]
+        for service in manifest["services"].values():
+            for kind, field, prefix in (("DOMAIN-SUFFIX", "suffixes", "+."), ("DOMAIN", "exact_hosts", "")):
+                for domain in service[field]:
+                    with self.subTest(domain=domain):
+                        self.assertIn(kind + "," + domain + ",DIRECT", result["rules"])
+                        self.assertTrue(all(url.endswith("#DIRECT") for url in dns[prefix + domain]))
+
 
 if __name__ == "__main__":
     unittest.main()
