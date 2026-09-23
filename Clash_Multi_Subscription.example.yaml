@@ -1,0 +1,27 @@
+# 本地模板：复制后填入两家的 Clash/Mihomo 订阅链接。
+# 含真实订阅链接的副本只保存在本机，不要提交到 GitHub。
+# 在 Clash Verge Rev 导入为本地配置，并应用 Clash_Global_Extension.js。
+proxy-providers:
+  provider-A:
+    type: http
+    url: "https://example.invalid/replace-with-subscription-A"
+    path: ./proxy_providers/personal-A.yaml
+    interval: 21600
+    proxy: DIRECT
+    override:
+      additional-prefix: "A | "
+  provider-B:
+    type: http
+    url: "https://example.invalid/replace-with-subscription-B"
+    path: ./proxy_providers/personal-B.yaml
+    interval: 21600
+    proxy: DIRECT
+    override:
+      additional-prefix: "B | "
+
+# 普通代理、Crypto 及完整分流规则由全局扩展脚本生成。
+# 未应用脚本时不将流量直接发送出去。
+proxies: []
+proxy-groups: []
+rules:
+  - MATCH,REJECT
