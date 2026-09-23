@@ -41,6 +41,69 @@ def fixture():
     }
 
 
+def shadowrocket_rules():
+    text = SHADOWROCKET.read_text(encoding="utf-8")
+    return [line.strip() for line in text.split("[Rule]\n")[1].split("[Host]")[0].splitlines()
+            if line.strip() and not line.startswith("#")]
+
+
+class ShadowrocketTests(unittest.TestCase):
+    def test_independent_selectors_without_subscription_or_node_binding(self):
+        text = SHADOWROCKET.read_text(encoding="utf-8")
+        groups = [line.strip() for line in text.split("[Proxy Group]\n")[1].split("[Rule]")[0].splitlines()
+                  if line.strip() and not line.startswith("#")]
+        self.assertEqual(groups, ["普通代理 = select,policy-regex-filter=.*",
+                                  "Crypto = select,policy-regex-filter=.*"])
+        rules = shadowrocket_rules()
+        self.assertEqual(rules[-1], "FINAL,普通代理")
+        self.assertTrue(all(line.rsplit(",", 1)[-1] in ("Crypto", "普通代理", "DIRECT", "no-resolve")
+                            for line in rules))
+        self.assertNotIn("[MITM]", text)
+        self.assertNotIn("[Script]", text)
+
+    def test_crypto_precedes_general_rules_and_preserves_host_boundaries(self):
+        rules = shadowrocket_rules()
+        first_remote = next(i for i, rule in enumerate(rules) if rule.startswith("DOMAIN-SET,"))
+        crypto = [rule for rule in rules if rule.endswith(",Crypto")]
+        self.assertEqual(len(crypto), len(set(crypto)))
+        self.assertTrue(crypto)
+        self.assertTrue(all(rules.index(rule) < first_remote for rule in crypto))
+
+        def local_policy(host):
+            for rule in rules[:first_remote]:
+                kind, domain, policy, *_ = rule.split(",")
+                if kind == "DOMAIN" and host == domain:
+                    return policy
+                if kind == "DOMAIN-SUFFIX" and (host == domain or host.endswith("." + domain)):
+                    return policy
+            return None
+
+        for host in ("api.bybit.com", "stream.bybit.com", "api.binance.com", "www.okx.com",
+                     "coinbase.com", "coinmarketcap.com", "coingecko.com", "metamask.io",
+                     "oklink.com", "bybit.ada.support", "bybit-exchange.github.io",
+                     "zftksc.launches.appsflyersdk.com"):
+            with self.subTest(host=host):
+                self.assertEqual(local_policy(host), "Crypto")
+        for host in ("fakebybit.com", "bybit.com.example.org", "cloudfront.net", "amazonaws.com",
+                     "other.ada.support", "other.launches.appsflyersdk.com", "github.io"):
+            with self.subTest(host=host):
+                self.assertIsNone(local_policy(host))
+        self.assertEqual(local_policy("store.steampowered.com"), "普通代理")
+        self.assertEqual(local_policy("cdn.steamcontent.com"), "DIRECT")
+        self.assertEqual(local_policy("router.lan"), "DIRECT")
+
+    def test_old_personal_exchange_supplements_are_removed(self):
+        rules = shadowrocket_rules()
+        for domain in ("bybit.nl", "bybit.tr", "bybit.kz", "bybitgeorgia.ge", "bybit.ae",
+                       "bybit.eu", "bybit.id", "monitor-frontend-collector.a.bybit-aws.com"):
+            self.assertFalse(any(rule.split(",")[1] == domain for rule in rules))
+        manifest = json.loads((ROOT / "exchange_domains.json").read_text(encoding="utf-8"))
+        for service in manifest["services"].values():
+            for kind, field in (("DOMAIN-SUFFIX", "suffixes"), ("DOMAIN", "exact_hosts")):
+                for domain in service[field]:
+                    self.assertNotIn(kind + "," + domain + ",DIRECT", rules)
+
+
 @unittest.skipUnless(shutil.which("node"), "Node.js required")
 class ProxyConfigTests(unittest.TestCase):
     def test_subscription_preserved_and_ads_removed(self):
@@ -111,7 +174,7 @@ class ProxyConfigTests(unittest.TestCase):
         self.assertTrue(all(url.startswith("https://") for url in dns["default-nameserver"]))
         self.assertEqual(dns["listen"], "127.0.0.1:1053")
 
-    def test_cross_client_rule_order_and_exceptions(self):
+    def test_common_rules_stay_aligned_except_intentional_crypto_difference(self):
         sr = SHADOWROCKET.read_text(encoding="utf-8")
         self.assertNotIn("[MITM]", sr)
         self.assertNotIn("[Script]", sr)
@@ -119,13 +182,22 @@ class ProxyConfigTests(unittest.TestCase):
                         if line.strip() and not line.startswith("#")]
         normalized = []
         for line in source_rules:
+            if line.endswith(",Crypto"):
+                continue
             if line.startswith("DOMAIN-SET,"):
                 name = "personal-global" if "/Global/" in line else "personal-cn"
                 line = "RULE-SET," + name + "," + line.rsplit(",", 1)[1]
             if line.startswith("IP-CIDR,") and ":" in line.split(",")[1]:
                 line = line.replace("IP-CIDR,", "IP-CIDR6,", 1)
-            normalized.append(line.replace(",PROXY", ",original").replace("FINAL,", "MATCH,"))
-        self.assertEqual(normalized, transform(fixture())["rules"])
+            normalized.append(line.replace(",普通代理", ",original").replace("FINAL,", "MATCH,"))
+        # Clash intentionally retains its existing exchange DIRECT exceptions.
+        manifest = json.loads((ROOT / "exchange_domains.json").read_text(encoding="utf-8"))
+        exchange_rules = {kind + "," + domain + ",DIRECT"
+                          for service in manifest["services"].values()
+                          for kind, field in (("DOMAIN-SUFFIX", "suffixes"), ("DOMAIN", "exact_hosts"))
+                          for domain in service[field]}
+        common_clash_rules = [rule for rule in transform(fixture())["rules"] if rule not in exchange_rules]
+        self.assertEqual(normalized, common_clash_rules)
 
     def test_exchange_domains_override_proxy_without_broad_matching(self):
         result = transform(fixture())
