@@ -418,15 +418,14 @@ function main(config) {
         const key = (parts[0] === "DOMAIN-SUFFIX" ? "+." : "") + parts[1];
         config.dns["nameserver-policy"][key] = cryptoDNS;
     });
-    // 保留客户端 TUN 开关；只有用户开启 TUN 时这些参数才生效。
+    // IPv6、TUN 开关和严格路由由客户端设置管理，脚本不覆盖。
+    // 只有用户开启 TUN 时以下参数才生效。
     config.tun = Object.assign({}, config.tun || {}, {
         "auto-route": true,
         "auto-detect-interface": true,
-        "strict-route": true,
         "dns-hijack": ["any:53", "tcp://any:53"]
     });
     config.mode = "rule";
-    config.ipv6 = false;
     config.profile = Object.assign({}, config.profile || {}, {"store-selected": true});
     return config;
 }

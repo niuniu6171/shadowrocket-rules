@@ -106,6 +106,26 @@ class ShadowrocketTests(unittest.TestCase):
 
 @unittest.skipUnless(shutil.which("node"), "Node.js required")
 class ProxyConfigTests(unittest.TestCase):
+    def test_app_managed_ipv6_and_strict_route_are_preserved(self):
+        for ipv6 in (False, True):
+            for strict_route in (False, True):
+                with self.subTest(ipv6=ipv6, strict_route=strict_route):
+                    source = fixture()
+                    source["ipv6"] = ipv6
+                    source["tun"]["strict-route"] = strict_route
+                    result = transform(source, twice=True)
+                    self.assertEqual(result["ipv6"], ipv6)
+                    self.assertEqual(result["tun"]["strict-route"], strict_route)
+        for has_tun in (False, True):
+            with self.subTest(has_tun=has_tun):
+                source = fixture()
+                if not has_tun:
+                    source.pop("tun")
+                result = transform(source, twice=True)
+                self.assertNotIn("ipv6", result)
+                self.assertNotIn("strict-route", result["tun"])
+                self.assertFalse(result["dns"]["ipv6"])
+
     def test_original_nodes_providers_and_other_groups_are_preserved(self):
         source = fixture()
         source["proxy-groups"].append({"name": "media", "type": "select", "proxies": ["original"]})
